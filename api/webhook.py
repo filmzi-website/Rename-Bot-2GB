@@ -1,62 +1,61 @@
-from http.server import BaseHTTPRequestHandler
+from aiohttp import web
+import asyncio
 import json
 import os
 import sys
-import asyncio
 
-# Add current directory to Python path
+# Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
+# Import your bot components
 try:
-    # Import your existing bot
     from bot import main_bot
-    from config import *
-except ImportError as e:
-    print(f"Import error: {e}")
+    BOT_AVAILABLE = True
+except ImportError:
+    BOT_AVAILABLE = False
 
-class handler(BaseHTTPRequestHandler):
-    
-    def do_GET(self):
-        """Handle GET requests (health check)"""
-        self.send_response(200)
-        self.send_header('Content-type', 'text/plain')
-        self.end_headers()
-        self.wfile.write(b'🤖 Bot is running on Vercel!')
-    
-    def do_POST(self):
-        """Handle Telegram webhook updates"""
-        try:
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
-            update = json.loads(post_data)
-            
-            # Process the update
-            asyncio.run(self.process_telegram_update(update))
-            
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            response = json.dumps({"status": "success"})
-            self.wfile.write(response.encode())
-            
-        except Exception as e:
-            print(f"Error processing update: {e}")
-            self.send_response(500)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            error_response = json.dumps({"status": "error", "message": str(e)})
-            self.wfile.write(error_response.encode())
-    
-    async def process_telegram_update(self, update):
-        """Process Telegram update using your existing bot"""
-        try:
-            # If your main_bot can handle updates directly
-            if 'main_bot' in globals():
-                await main_bot.process_update(update)
-            else:
-                # Alternative: Use your existing route.py logic
-                from route import app
-                # Adapt based on your route.py structure
-                print(f"Processing update: {update}")
-        except Exception as e:
-            print(f"Error in process_telegram_update: {e}")
+routes = web.RouteTableDef()
+
+@routes.get("/", allow_head=True)
+async def root_route_handler(request):
+    return web.json_response({
+        "message": "JishuBotz - Running on Vercel 🚀",
+        "bot_status": "active" if BOT_AVAILABLE else "not available",
+        "developer": "@JishuDeveloper"
+    })
+
+@routes.post("/webhook")
+async def telegram_webhook(request):
+    """Handle Telegram webhook updates"""
+    try:
+        data = await request.json()
+        
+        # Process with your bot if available
+        if BOT_AVAILABLE:
+            # Adapt this to your bot's update processing
+            # await main_bot.process_update(data)
+            print(f"Received update: {data}")
+        
+        return web.json_response({"status": "success"})
+        
+    except Exception as e:
+        return web.json_response({"status": "error", "message": str(e)}, status=500)
+
+@routes.get("/health")
+async def health_check(request):
+    return web.json_response({"status": "healthy", "server": "aiohttp"})
+
+# Create app
+async def create_app():
+    app = web.Application(client_max_size=30000000)
+    app.add_routes(routes)
+    return app
+
+# Vercel handler
+app = asyncio.run(create_app())
+
+async def main(request):
+    """Vercel serverless entry point"""
+    handler = app.make_handler()
+    response = await handler(request)
+    return response
