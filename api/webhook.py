@@ -1,40 +1,41 @@
 from aiohttp import web
-import asyncio
 import json
 
-routes = web.RouteTableDef()
-
-@routes.get("/", allow_head=True)
-async def root_route_handler(request):
+async def handle_get(request):
     return web.json_response({
-        "message": "JishuBotz - Running on Vercel 🚀",
-        "status": "active",
+        "status": "success",
+        "message": "JishuBotz - Vercel",
         "developer": "@JishuDeveloper"
     })
 
-@routes.post("/webhook")
-async def telegram_webhook(request):
-    """Handle Telegram webhook updates"""
+async def handle_webhook(request):
     try:
-        data = await request.json()
-        print(f"Received update: {data}")
+        # For GET requests
+        if request.method == 'GET':
+            return await handle_get(request)
         
-        # Add your bot processing logic here
-        # await process_telegram_update(data)
-        
-        return web.json_response({"status": "success"})
+        # For POST requests (Telegram webhook)
+        if request.method == 'POST':
+            data = await request.json()
+            print("Webhook data:", data)
+            
+            # Add your bot logic here
+            # await process_telegram_update(data)
+            
+            return web.json_response({"status": "success"})
+            
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
-@routes.get("/health")
-async def health_check(request):
-    return web.json_response({"status": "healthy"})
-
-# Create app
+# Create application
 app = web.Application()
-app.add_routes(routes)
+
+# Add routes
+app.router.add_get('/', handle_get)
+app.router.add_get('/webhook', handle_get)
+app.router.add_post('/webhook', handle_webhook)
+app.router.add_get('/health', handle_get)
 
 # Vercel handler
 async def main(request):
-    """Vercel serverless entry point"""
     return await app._handle_request(request)
