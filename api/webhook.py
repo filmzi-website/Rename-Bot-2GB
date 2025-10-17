@@ -1,41 +1,49 @@
-from aiohttp import web
+from http.server import BaseHTTPRequestHandler
 import json
 
-async def handle_get(request):
-    return web.json_response({
-        "status": "success",
-        "message": "JishuBotz - Vercel",
-        "developer": "@JishuDeveloper"
-    })
-
-async def handle_webhook(request):
-    try:
-        # For GET requests
-        if request.method == 'GET':
-            return await handle_get(request)
-        
-        # For POST requests (Telegram webhook)
-        if request.method == 'POST':
-            data = await request.json()
-            print("Webhook data:", data)
+class handler(BaseHTTPRequestHandler):
+    
+    def do_GET(self):
+        """Handle GET requests"""
+        try:
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
             
-            # Add your bot logic here
-            # await process_telegram_update(data)
+            response = {
+                "status": "success",
+                "message": "🤖 JishuBotz is Running on Vercel!",
+                "developer": "@JishuDeveloper",
+                "endpoints": {
+                    "root": "/",
+                    "webhook": "/webhook (POST)",
+                    "health": "/health"
+                }
+            }
+            self.wfile.write(json.dumps(response).encode())
             
-            return web.json_response({"status": "success"})
+        except Exception as e:
+            self.send_error(500, f"Error: {str(e)}")
+    
+    def do_POST(self):
+        """Handle POST requests (Telegram webhook)"""
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length) if content_length > 0 else b'{}'
             
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
-
-# Create application
-app = web.Application()
-
-# Add routes
-app.router.add_get('/', handle_get)
-app.router.add_get('/webhook', handle_get)
-app.router.add_post('/webhook', handle_webhook)
-app.router.add_get('/health', handle_get)
-
-# Vercel handler
-async def main(request):
-    return await app._handle_request(request)
+            # Log the received data (for debugging)
+            print(f"Received POST data: {post_data.decode('utf-8')[:200]}")
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            
+            response = {
+                "status": "success",
+                "message": "Webhook received successfully",
+                "developer": "JishuDeveloper"
+            }
+            self.wfile.write(json.dumps(response).encode())
+            
+        except Exception as e:
+            self.send_error(500, f"Error processing webhook: {str(e)}")
